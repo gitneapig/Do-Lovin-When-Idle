@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<loadFolders>
+	<v1.4>
+		<li>/</li>
+		<li IfModNotActive="zetrith.prepatcher">NonPrepatcher/1.4</li>
+		<li IfModActive="zetrith.prepatcher">1.4</li>
+	</v1.4>
+
+	<v1.5>
+		<li>/</li>
+		<li IfModNotActive="zetrith.prepatcher">NonPrepatcher/1.5</li>
+		<li IfModActive="zetrith.prepatcher">1.5</li>
+	</v1.5>
+	
+	<v1.6>
+		<li>/</li>
+		<li IfModNotActive="jikulopo.prepatcher">NonPrepatcher/1.6</li>
+		<li IfModActive="jikulopo.prepatcher">1.6</li>
+	</v1.6>
+</loadFolders>
