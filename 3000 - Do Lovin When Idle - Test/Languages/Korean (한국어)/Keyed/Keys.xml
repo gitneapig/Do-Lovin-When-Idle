@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+	<DoLovinWhenIdle.NoStopRecreation>재미가 100%여도 오락 계속</DoLovinWhenIdle.NoStopRecreation>
+	<DoLovinWhenIdle.NoStopRecreation.Desc>재미가 가득 찬 상태(100%)에서도 오락을 계속할 수 있습니다. 일반적으로 림월드는 욕구가 최대치에 도달하면 오락을 즉시 중단합니다.\n\n이 변경 사항은 림월드를 재시작한 후에만 적용됩니다.\n\n기본값: True</DoLovinWhenIdle.NoStopRecreation.Desc>
+</LanguageData>

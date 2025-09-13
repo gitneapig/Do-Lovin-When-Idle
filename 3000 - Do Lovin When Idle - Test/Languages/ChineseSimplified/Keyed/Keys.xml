@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+	<DoLovinWhenIdle.NoStopRecreation>即使娱乐已满（100%），仍继续进行娱乐活动</DoLovinWhenIdle.NoStopRecreation>
+	<DoLovinWhenIdle.NoStopRecreation.Desc>允许在娱乐值已满（100%）的情况下继续进行娱乐活动。通常情况下，当娱乐需求值达到最大时，RimWorld 会立即中止娱乐。\n\n
+此更改需在重新启动 RimWorld 后生效。\n\n默认值：开启</DoLovinWhenIdle.NoStopRecreation.Desc>
+</LanguageData>

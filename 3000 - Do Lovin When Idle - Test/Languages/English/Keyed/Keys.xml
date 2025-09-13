@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+	<DoLovinWhenIdle.NoStopRecreation>Continue Recreation at 100% Joy</DoLovinWhenIdle.NoStopRecreation>
+	<DoLovinWhenIdle.NoStopRecreation.Desc>Allow recreation to continue even when joy is full (100%). Normally, RimWorld stops it immediately when the need is maxed.\n\nThe change will apply only after you restart RimWorld.\n\nDefault: True</DoLovinWhenIdle.NoStopRecreation.Desc>
+</LanguageData>

@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<loadFolders>
+	<v1.6>
+		<li>/</li>
+		<li IfModNotActive="jikulopo.prepatcher">1.6Test</li>
+		<li IfModActive="jikulopo.prepatcher">1.6Test Prepatcher</li>
+	</v1.6>
+</loadFolders>
