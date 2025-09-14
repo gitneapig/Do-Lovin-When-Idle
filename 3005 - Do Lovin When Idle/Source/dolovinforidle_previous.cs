@@ -1,5 +1,6 @@
 ﻿using eqdseq;
 using HarmonyLib;
+using Prepatcher;
 using RimWorld;
 using RimWorld.Planet;
 using RomanceOnTheRim;
@@ -201,72 +202,6 @@ namespace eqdseq
         }
     }
 
-
-    public class DoLovinWhenIdleComponent : GameComponent
-    {
-        private Game unusedMyComponent;
-        public DoLovinWhenIdleComponent(Game game)
-        {
-            unusedMyComponent = game;
-            PawnTempDataManager.Reset();
-        }
-
-        public override void LoadedGame()
-        {
-            unusedMyComponent.components.Remove(this);
-        }
-
-        public override void ExposeData()
-        {
-
-        }
-    }
-
-    public class PawnTempData
-    {
-        public int lastCheckTick = 0;
-        public int laborCheckTick = 0;
-        public int sharedBedSpouse = 0;
-        public int lastTryTick = 1;
-
-        public int lovinCount = 0;
-    }
-
-    public static class PawnTempDataManager
-    {
-        private static Dictionary<int, PawnTempData> pawnData = new Dictionary<int, PawnTempData>();
-
-        public static void Reset()
-        {
-            pawnData.Clear();
-            //Log.Message("PawnTempDataManager를 초기화합니다.");
-        }
-
-        public static PawnTempData GetOrCreateData(int pawn)
-        {
-            if (pawnData.TryGetValue(pawn, out PawnTempData data))
-            {
-                return data;
-            }
-
-            PawnTempData newData = new PawnTempData();
-            pawnData.Add(pawn, newData);
-            newData.lastTryTick = Find.TickManager.TicksGame + Rand.Range(500, 5000);
-            newData.lastCheckTick = Find.TickManager.TicksGame + Rand.Range(500, 1000);
-            if (Prefs.DevMode)
-            {
-                newData.lastTryTick = Find.TickManager.TicksGame + 500;
-                newData.lastCheckTick = Find.TickManager.TicksGame + 300;
-            }
-            if (!ModLister.CheckBiotech("Human pregnancy"))
-            {
-                newData.laborCheckTick = int.MaxValue;
-            }
-            return newData;
-        }
-    }
-
-
     public class IdleLovinUtility
     {
         public static float GetLovinMtbHours(Pawn pawn, Pawn partner)
@@ -325,195 +260,239 @@ namespace eqdseq
         }
     }
 
+
+
+
+    public static class PawnTempData
+    {
+        [PrepatcherField]
+        [Prepatcher.DefaultValue(0)]
+        public static extern ref int lastCheckTick(this Pawn target);
+
+        [PrepatcherField]
+        [Prepatcher.DefaultValue(0)]
+        public static extern ref int laborCheckTick(this Pawn target);
+
+        [PrepatcherField]
+        [Prepatcher.DefaultValue(60000)]
+        public static extern ref int lastTryTick(this Pawn target);
+
+        [PrepatcherField]
+        [Prepatcher.DefaultValue(false)]
+        public static extern ref bool layDownState(this Pawn target);
+
+        [PrepatcherField]
+        [Prepatcher.DefaultValue(false)]
+        public static extern ref bool initLastTryTick(this Pawn target);
+
+        [PrepatcherField]
+        [Prepatcher.DefaultValue(1)]
+        public static extern ref int lastTryCount(this Pawn target);
+    }
+
+
     public class JobGiver_IdleLovin : ThinkNode_JobGiver
     {
-        private readonly int radius = 70;
         public JobGiver_IdleLovin() { }
 
-        public override float GetPriority(Pawn pawn)
-        {
-            if (pawn.needs == null)
-            {
-                return 0f;
-            }
+        //public override float GetPriority(Pawn pawn)
+        //{
+        //    if (pawn.lastTryTick() > Find.TickManager.TicksGame)
+        //    {
+        //        return 0f;
+        //    }
 
-            if (pawn.needs.joy == null)
-            {
-                return 0f;
-            }
-            if (pawn.needs.joy.CurLevel < 0.8f)
-            {
-                return 0f;
-            }
-            return pawn.needs.joy.CurLevel * 10f;
-        }
+        //    if (pawn.needs == null)
+        //    {
+        //        pawn.lastTryTick() = int.MaxValue;
+        //        pawn.lastCheckTick() = int.MaxValue;
+        //        Log.Error($"[DoLovinWhenIdle]{pawn.LabelShortCap} currently has an error or is incompatible. Please reload the game or remove this mod. DoLovinWhenIdle will remain disabled until the game is reloaded.");
+        //        return 0f;
+        //    }
+
+        //    if (pawn.needs.joy != null && pawn.needs.joy.CurLevel < 0.5f)
+        //    {
+        //        pawn.lastTryTick() = Find.TickManager.TicksGame + 3000;
+        //        return 0f;
+        //    }
+        //    return 9f;
+        //}
 
         protected override Job TryGiveJob(Pawn pawn)
         {
+            if (pawn.lastTryTick() > Find.TickManager.TicksGame)
+            {
+                return null;
+            }
+
+            int ticksGame = Find.TickManager.TicksGame;
+
+            if (pawn.lastCheckTick() < ticksGame)
+            {
+                pawn.lastCheckTick() = ticksGame + 30;
+            }
+
             Building_Bed ownedBed = pawn.ownership.OwnedBed;
             if (ownedBed == null)
             {
+                pawn.lastTryTick() = ticksGame + 15000;
                 return null;
             }
             if (ownedBed.OwnersForReading.Count == 1)
             {
-                return null;
-            }
-            if (Find.TickManager.TicksGame < pawn.mindState.canLovinTick)
-            {
+                pawn.lastTryTick() = ticksGame + 30000;
                 return null;
             }
             if (!ownedBed.Spawned)
             {
+                pawn.lastTryTick() = ticksGame + 15000;
                 return null;
             }
-            if (ownedBed.Map != pawn.Map)
+
+            int canLovinTick = pawn.mindState.canLovinTick;
+            if (canLovinTick > ticksGame)
             {
+                pawn.lastTryTick() = canLovinTick + 30;
+                pawn.lastCheckTick() = Math.Max(pawn.lastCheckTick(), canLovinTick);
                 return null;
             }
-            if (ownedBed.Medical)
+
+            Map ownedBedMap = ownedBed.Map;
+            if (ownedBedMap != pawn.Map)
             {
+                pawn.lastTryTick() = ticksGame + 15000;
                 return null;
             }
 
-
-            PawnTempData tempData = PawnTempDataManager.GetOrCreateData(pawn.thingIDNumber);
-            int ticksGame = Find.TickManager.TicksGame;
-
-            if (ticksGame < tempData.lastTryTick)
-            {
-                return null;
-            }
-            tempData.lastTryTick = ticksGame + 180;
-
-            if (ticksGame < tempData.lastCheckTick)
-            {
-                return null;
-            }
-            tempData.lastCheckTick = ticksGame;
-
-            int diff = Mathf.RoundToInt((pawn.Position - ownedBed.Position).LengthHorizontalSquared - (radius * radius));
-            if (diff > 0)
-            {
-                tempData.lastTryTick += (9 * radius);
-                tempData.lastCheckTick += (6 * radius);
-                return null;
-            }
-
+            IntVec3 ownedBedPos = ownedBed.Position;
             foreach (IntVec3 item in ownedBed.OccupiedRect())
             {
-                if (item.ContainsStaticFire(ownedBed.Map))
+                if (item.ContainsStaticFire(ownedBedMap))
                 {
-                    tempData.lastTryTick += 5000;
-                    tempData.lastCheckTick += 2500;
+                    pawn.lastTryTick() = ticksGame + 5000;
                     return null;
                 }
             }
-            if (!pawn.SafeTemperatureAtCell(ownedBed.Position, ownedBed.Map))
+            if (!pawn.SafeTemperatureAtCell(ownedBedPos, ownedBedMap))
             {
-                tempData.lastTryTick += 5000;
-                tempData.lastCheckTick += 2500;
+                pawn.lastTryTick() = ticksGame + 5000;
+                return null;
+            }
+            if (ownedBedPos.GetVacuum(ownedBedMap) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+            {
+                pawn.lastTryTick() = ticksGame + 10000;
                 return null;
             }
 
-            if (ownedBed.Position.GetVacuum(ownedBed.Map) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
-            {
-                tempData.lastTryTick += 10000;
-                tempData.lastCheckTick += 5000;
-                return null;
-            }
-            tempData.lastCheckTick += 20;
 
             if (pawn.needs == null)
             {
-                tempData.lastTryTick = int.MaxValue;
-                tempData.lastCheckTick = int.MaxValue;
+                pawn.lastTryTick() = int.MaxValue;
+                pawn.lastCheckTick() = int.MaxValue;
                 Log.Error($"[DoLovinWhenIdle]{pawn.LabelShortCap} currently has an error or is incompatible. Please reload the game or remove this mod. DoLovinWhenIdle will remain disabled until the game is reloaded.");
                 return null;
             }
-            if (pawn.needs.mood != null && pawn.needs.mood.CurLevel < 0.5)
+            if (pawn.needs.mood != null && pawn.needs.mood.CurLevel < 0.5f)
             {
-                tempData.lastTryTick = ticksGame + 3000;
-                tempData.lastCheckTick += 1500;
+                pawn.lastTryTick() = ticksGame + 3000;
                 return null;
             }
 
-            if (pawn.needs.food != null && pawn.needs.food.CurLevel < 0.3)
+            if (pawn.needs.food != null && pawn.needs.food.CurLevel < 0.3f)
             {
-                tempData.lastTryTick = ticksGame + 3000;
-                tempData.lastCheckTick += 1500;
+                pawn.lastTryTick() = ticksGame + 3000;
                 return null;
             }
 
-            if (pawn.needs.rest != null && pawn.needs.rest.CurLevel < 0.3)
+            if (pawn.needs.rest != null && pawn.needs.rest.CurLevel < 0.3f)
             {
-                tempData.lastTryTick = ticksGame + 3000;
+                pawn.lastTryTick() = ticksGame + 3000;
                 return null;
             }
 
-            if (pawn.needs.joy != null && pawn.needs.joy.CurLevel < 0.5)
+            if (pawn.needs.joy != null && pawn.needs.joy.CurLevel < 0.5f)
             {
-                tempData.lastTryTick = ticksGame + 3000;
+                pawn.lastTryTick() = ticksGame + 3000;
                 return null;
             }
+
 
             if (pawn.health?.hediffSet == null)
             {
-                tempData.lastTryTick = int.MaxValue;
-                tempData.lastCheckTick = int.MaxValue;
+                pawn.lastTryTick() = int.MaxValue;
+                pawn.lastCheckTick() = int.MaxValue;
                 Log.Error($"[DoLovinWhenIdle]{pawn.LabelShortCap} currently has an error or is incompatible. Please reload the game or remove this mod. DoLovinWhenIdle will remain disabled until the game is reloaded.");
                 return null;
             }
 
             if (pawn.health.hediffSet.BleedRateTotal > 0f)
             {
-                tempData.lastTryTick = ticksGame + 3000;
-                tempData.lastCheckTick += 1500;
+                pawn.lastTryTick() = ticksGame + 3000;
                 return null;
             }
 
-            if (tempData.laborCheckTick < ticksGame)
+            if (pawn.laborCheckTick() < ticksGame)
             {
+                if (!pawn.initLastTryTick())
+                {
+                    pawn.initLastTryTick() = true;
+                    int numr = Rand.Range(500, 1000);
+                    if (!ModLister.CheckBiotech("Human pregnancy"))
+                    {
+                        pawn.laborCheckTick() = int.MaxValue;
+                        pawn.lastTryTick() = ticksGame + numr;
+                        return null;
+                    }
+                    
+                    if (pawn.lastTryTick() == 60000)
+                    {  
+                        pawn.lastCheckTick() += numr;
+                        pawn.lastTryTick() = ticksGame + (5 * numr);
+                        return null;
+                    }  
+                }
+
+                pawn.laborCheckTick() = ticksGame;
                 if (pawn.health.hediffSet.InLabor(true))
                 {
-                    tempData.laborCheckTick = ticksGame + 40000;
-                    tempData.lastCheckTick += 60000;
+                    pawn.laborCheckTick() += 40000;
+                    pawn.lastCheckTick() = ticksGame + 60000;
+                    pawn.lastTryTick() = ticksGame + 60000;
                     return null;
                 }
-                tempData.laborCheckTick = ticksGame + 360000;
+                int num = 360000;
 
-                Hediff_Pregnant pregnancyHediff = pawn.health?.hediffSet?.GetFirstHediffOfDef(HediffDefOf.PregnantHuman) as Hediff_Pregnant;
+                Hediff_Pregnant pregnancyHediff = pawn.health.hediffSet.GetFirstHediffOfDef(HediffDefOf.PregnantHuman) as Hediff_Pregnant;
                 if (pregnancyHediff != null)
                 {
                     switch (pregnancyHediff.CurStageIndex)
                     {
                         case 0:
-                            tempData.laborCheckTick = ticksGame + 360000;
                             break;
                         case 1:
-                            tempData.laborCheckTick = ticksGame + 180000;
+                            num = 180000;
                             break;
                         case 2:
                             float severity = pregnancyHediff.Severity;
                             if (severity > 0.95f)
                             {
-                                tempData.laborCheckTick = ticksGame + 40000;
-                                tempData.lastCheckTick += 60000;
+                                pawn.laborCheckTick() += 40000;
+                                pawn.lastCheckTick() = ticksGame + 60000;
+                                pawn.lastTryTick() = ticksGame + 60000;
                                 return null;
                             }
-                            else
-                            {
-                                tempData.laborCheckTick = ticksGame + 50000;
-                            }
+                            num = 50000;
                             break;
                     }
                 }
+                pawn.laborCheckTick() += num;
             }
 
             IntVec3 sleepingSpot = RestUtility.GetBedSleepingSlotPosFor(pawn, ownedBed);
             int sharedBedNonSpouse = 0;
-            int lastCheckTickTemp = int.MaxValue;
-            bool doItLater = false;
+            int lastCheckTickTemp = pawn.lastTryTick();
+            bool pawnCanReachCheck = false;
+            pawn.lastTryTick() = ticksGame;
 
 
             foreach (Pawn pawn2 in ownedBed.OwnersForReading)
@@ -525,240 +504,269 @@ namespace eqdseq
 
                 if (!LovePartnerRelationUtility.LovePartnerRelationExists(pawn, pawn2))
                 {
-                    sharedBedNonSpouse++;
+                    sharedBedNonSpouse += 5000;
                     continue;
                 }
 
-                if (ticksGame < pawn2.mindState.canLovinTick)
+                if (pawn2.lastCheckTick() > ticksGame)
                 {
+                    lastCheckTickTemp = pawn2.lastCheckTick();
                     continue;
                 }
 
-                if (pawn2.needs == null)
+                canLovinTick = pawn2.mindState.canLovinTick;
+                if (canLovinTick > ticksGame)
                 {
-                    doItLater = true;
-                    continue;
-                }
-
-                if (pawn2.needs.mood != null && pawn2.needs.mood.CurLevel < 0.45)
-                {
-                    doItLater = true;
-                    continue;
-                }
-                if (pawn2.needs.food != null && pawn2.needs.food.CurLevel < 0.3)
-                {
-                    doItLater = true;
-                    continue;
-                }
-                if (pawn2.needs.rest != null && pawn2.needs.rest.CurLevel < 0.3)
-                {
-                    doItLater = true;
-                    continue;
-                }
-                if (pawn2.needs.joy != null && pawn2.needs.joy.CurLevel < 0.5)
-                {
-                    doItLater = true;
-                    continue;
-                }
-
-                if (pawn2.health?.hediffSet == null)
-                {
-                    doItLater = true;
-                    continue;
-                }
-
-                if (pawn2.health.hediffSet.BleedRateTotal > 0f)
-                {
-                    doItLater = true;
-                    continue;
-                }
-
-                PawnTempData tempData2 = PawnTempDataManager.GetOrCreateData(pawn2.thingIDNumber);
-                if (ticksGame < tempData2.lastCheckTick)
-                {
-                    if (lastCheckTickTemp > tempData2.lastCheckTick)
-                    {
-                        lastCheckTickTemp = tempData2.lastCheckTick;
-                    }
-                    continue;
-                }
-                tempData2.lastCheckTick = ticksGame + 30;
-
-                float diff2 = (pawn2.Position - ownedBed.Position).LengthHorizontalSquared - (radius * radius);
-
-                if (diff2 > 0)
-                {
-                    doItLater = true;
-                    continue;
-                }
-
-                if (!pawn2.SafeTemperatureAtCell(ownedBed.Position, ownedBed.Map))
-                {
-                    doItLater = true;
-                    continue;
-                }
-
-                if (ownedBed.Position.GetVacuum(ownedBed.Map) >= 0.5f && pawn2.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
-                {
-                    doItLater = true;
-                    continue;
-                }
-
-                JobDriver pawn2curDriver = pawn2.jobs.curDriver;
-                if (pawn2curDriver == null)
-                {
+                    pawn2.lastCheckTick() = canLovinTick + 30;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
                     continue;
                 }
 
                 if (!pawn.CanReserve(pawn2, 1, -1, null, false) || !pawn2.CanReserve(pawn, 1, -1, null, false))
                 {
-                    doItLater = true;
+                    pawn2.lastCheckTick() = ticksGame + 5000;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
                     continue;
                 }
 
-                if (pawn2.mindState.lastJobTag == JobTag.SatisfyingNeeds)
+                if (pawn2.needs == null)
                 {
-                    if (pawn2curDriver.asleep)
-                    {
-                        if (pawn2.CurrentBed() == null || pawn2.CurrentBed().Medical || !pawn2.health.capacities.CanBeAwake)
-                        {
-                            tempData2.lastCheckTick += 2500;
-                            continue;
-                        }
-                        if (!pawn.CanReach(sleepingSpot, PathEndMode.OnCell, Danger.Deadly))
-                        {
-                            tempData.lastCheckTick += 1500;
-                            tempData.lastTryTick += 3000;
-                            return null;
-                        }
-                        tempData2.lastCheckTick += 300;
-                        tempData2.lastTryTick += 900;
-                        tempData.lastTryTick += 2500;
-                        Job newJob = JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed);
-                        pawn2.jobs.StartJob(newJob, JobCondition.InterruptForced);
-                        return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
-                    }
+                    pawn2.lastCheckTick() = int.MaxValue;
+                    continue;
+                }
+                if (pawn2.needs.mood != null && pawn2.needs.mood.CurLevel < 0.45f)
+                {
+                    pawn2.lastCheckTick() = ticksGame + 5000;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
+                if (pawn2.needs.food != null && pawn2.needs.food.CurLevel < 0.3f)
+                {
+                    pawn2.lastCheckTick() = ticksGame + 2500;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
+                if (pawn2.needs.rest != null && pawn2.needs.rest.CurLevel < 0.3f)
+                {
+                    pawn2.lastCheckTick() = ticksGame + 2500;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
+                if (pawn2.needs.joy != null && pawn2.needs.joy.CurLevel < 0.5f)
+                {
+                    pawn2.lastCheckTick() = ticksGame + 2500;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
                 }
 
-                if (tempData2.laborCheckTick < ticksGame)
+                if (pawn2.health?.hediffSet == null)
                 {
+                    pawn2.lastCheckTick() = int.MaxValue;
+                    continue;
+                }
+
+                if (pawn2.health.hediffSet.BleedRateTotal > 0f)
+                {
+                    pawn2.lastCheckTick() = ticksGame + 2500;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
+
+                if (!pawn2.SafeTemperatureAtCell(ownedBedPos, ownedBedMap))
+                {
+                    pawn2.lastCheckTick() = ticksGame + 5000;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
+
+                if (ownedBedPos.GetVacuum(ownedBedMap) >= 0.5f && pawn2.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                {
+                    pawn2.lastCheckTick() = ticksGame + 10000;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
+
+                if (pawn2.laborCheckTick() < ticksGame)
+                {
+                    pawn2.laborCheckTick() = ticksGame;
                     if (pawn2.health.hediffSet.InLabor(true))
                     {
-                        tempData2.laborCheckTick = ticksGame + 40000;
-                        tempData2.lastCheckTick += 60000;
+                        pawn2.laborCheckTick() += 40000;
+                        pawn2.lastCheckTick() = ticksGame + 60000;
+                        pawn2.lastTryTick() = ticksGame + 60000;
+                        lastCheckTickTemp = pawn2.lastCheckTick();
                         continue;
                     }
-                    tempData2.laborCheckTick = ticksGame + 360000;
-
+                    int nums = 360000;
+                    
                     Hediff_Pregnant pregnancyHediff2 = pawn2.health.hediffSet.GetFirstHediffOfDef(HediffDefOf.PregnantHuman) as Hediff_Pregnant;
                     if (pregnancyHediff2 != null)
                     {
                         switch (pregnancyHediff2.CurStageIndex)
                         {
                             case 0:
-                                tempData2.laborCheckTick = ticksGame + 360000;
                                 break;
                             case 1:
-                                tempData2.laborCheckTick = ticksGame + 180000;
+                                nums = 180000;
                                 break;
                             case 2:
-                                float severity = pregnancyHediff2.Severity;
-                                if (severity > 0.95f)
+                                if (pregnancyHediff2.Severity > 0.95f)
                                 {
-                                    tempData2.laborCheckTick = ticksGame + 40000;
-                                    tempData2.lastCheckTick += 60000;
+                                    pawn2.laborCheckTick() += 40000;
+                                    pawn2.lastCheckTick() = ticksGame + 60000;
+                                    pawn2.lastTryTick() = ticksGame + 60000;
+                                    lastCheckTickTemp = pawn2.lastCheckTick();
                                     continue;
                                 }
-                                else
-                                {
-                                    tempData2.laborCheckTick = ticksGame + 50000;
-                                }
+                                nums = 50000;
                                 break;
                         }
                     }
-                }
-
-                JobDef pawn2curJobdef = pawn2.jobs.curJob?.def;
-                if (pawn2curJobdef == null)
-                {
-                    continue;
+                    pawn2.laborCheckTick() += nums;
                 }
 
                 IntVec3 sleepingSpot2 = RestUtility.GetBedSleepingSlotPosFor(pawn2, ownedBed);
-                if (pawn2curDriver.ticksLeftThisToil > 0)
+                JobDef pawn2curJobdef = pawn2.jobs?.curJob?.def;
+                if (pawn2curJobdef == null)
                 {
-                    if ((pawn2.mindState.lastJobTag == JobTag.SatisfyingNeeds || pawn2.mindState.lastJobTag == JobTag.Idle) && pawn2curJobdef.joyKind != null && pawn2curDriver.ticksLeftThisToil < 1000 && pawn2.jobs.curJob.count == -1)
+                    pawn2.lastCheckTick() = ticksGame + Rand.Range(200, 750);
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
+
+                JobTag pawn2JobTag = pawn2.mindState.lastJobTag;
+                if (pawn2curJobdef == JobDefOf.Wait_Asleep && pawn2JobTag == JobTag.SatisfyingNeeds && pawn2.Position == sleepingSpot2 && pawn2.jobs.posture == PawnPosture.LayingInBed)
+                {
+                    if (!pawn2.health.capacities.CanBeAwake)
+                    {
+                        pawn2.lastCheckTick() = ticksGame + 30000;
+                        lastCheckTickTemp = pawn2.lastCheckTick();
+                        continue;
+                    }
+                    if (!pawnCanReachCheck)
+                    {
+                        if (!pawn.CanReach(sleepingSpot, PathEndMode.OnCell, Danger.Deadly))
+                        {
+                            pawn.lastCheckTick() = ticksGame + 5000;
+                            pawn.lastTryTick() += 10000;
+                            return null;
+                        }
+                        if (pawn.jobs?.curJob != null)
+                        {
+                            pawn.lastCheckTick() = ticksGame + 5000;
+                            pawn.lastTryTick() += 10000;
+                            return null;
+                        }
+                        pawnCanReachCheck = true;
+                    }
+                    pawn2.lastCheckTick() = ticksGame + 300;
+                    pawn2.lastTryTick() = ticksGame + 900;
+                    pawn.lastTryTick() += 2500;
+                    Job newJob = JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed);
+                    pawn2.jobs.StartJob(newJob, JobCondition.InterruptForced);
+                    return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
+                }
+
+                
+                bool pawn2Idle = false;
+                if (pawn2JobTag == JobTag.Idle)
+                {
+                    if (pawn2curJobdef == JobDefOf.GotoWander || pawn2curJobdef == JobDefOf.Wait_Wander)
                     {
                         if (!pawn2.CanReach(sleepingSpot2, PathEndMode.OnCell, Danger.Deadly))
                         {
-                            tempData2.lastCheckTick += 3000;
-                            doItLater = true;
+                            pawn2.lastCheckTick() = ticksGame + 2500;
+                            pawn2.lastTryTick() = ticksGame + 5000;
+                            lastCheckTickTemp = pawn2.lastCheckTick();
                             continue;
                         }
 
-                        if (!pawn.CanReach(sleepingSpot, PathEndMode.OnCell, Danger.Deadly))
+                        if (!pawnCanReachCheck)
                         {
-                            tempData.lastCheckTick += 1500;
-                            tempData.lastTryTick += 3000;
-                            return null;
+                            if (!pawn.CanReach(sleepingSpot, PathEndMode.OnCell, Danger.Deadly))
+                            {
+                                pawn.lastCheckTick() = ticksGame + 5000;
+                                pawn.lastTryTick() += 10000;
+                                return null;
+                            }
+                            if (pawn.jobs?.curJob != null)
+                            {
+                                pawn.lastCheckTick() = ticksGame + 5000;
+                                pawn.lastTryTick() += 10000;
+                                return null;
+                            }
+                            pawnCanReachCheck = true;
                         }
 
+                        pawn2.lastCheckTick() = ticksGame + 300;
+                        pawn2.lastTryTick() = ticksGame + 900;
+                        pawn.lastTryTick() += 2500;
+                        Job newJob = JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed);
+                        pawn2.jobs.StartJob(newJob, JobCondition.InterruptForced);
+                        return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
+                    }
+                    pawn2Idle = true;
+                }
+
+                if ((pawn2JobTag == JobTag.SatisfyingNeeds || pawn2Idle) && pawn2curJobdef.joyKind != null)
+                {
+                    if (pawn2.jobs.curDriver == null)
+                    {
+                        pawn2.lastCheckTick() = ticksGame + 250;
+                        lastCheckTickTemp = pawn2.lastCheckTick();
+                        continue;
+                    }
+                    int num2 = pawn2.jobs.curDriver.ticksLeftThisToil;
+                    if (num2 > 0 && num2 < 1000 && pawn2.jobs.curJob.count == -1)
+                    {
+                        if (!pawn2.CanReach(sleepingSpot2, PathEndMode.OnCell, Danger.Deadly))
+                        {
+                            pawn2.lastCheckTick() = ticksGame + 2500;
+                            pawn2.lastTryTick() = ticksGame + 5000;
+                            lastCheckTickTemp = pawn2.lastCheckTick();
+                            continue;
+                        }
+
+                        if (!pawnCanReachCheck)
+                        {
+                            if (!pawn.CanReach(sleepingSpot, PathEndMode.OnCell, Danger.Deadly))
+                            {
+                                pawn.lastCheckTick() = ticksGame + 5000;
+                                pawn.lastTryTick() += 10000;
+                                return null;
+                            }
+                            if (pawn.jobs?.curJob != null)
+                            {
+                                pawn.lastCheckTick() = ticksGame + 5000;
+                                pawn.lastTryTick() += 10000;
+                                return null;
+                            }
+                            pawnCanReachCheck = true;
+                        }
                         if (pawn2curJobdef.joyKind != JoyKindDefOf.Meditative)
                         {
                             JoyUtility.TryGainRecRoomThought(pawn2);
                         }
-                        tempData2.lastCheckTick += 300;
-                        tempData2.lastTryTick += 900;
-                        tempData.lastTryTick += 2500;
+                        pawn2.lastCheckTick() = ticksGame + 300;
+                        pawn2.lastTryTick() = ticksGame + 900;
+                        pawn.lastTryTick() += 2500;
                         Job newJob = JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed);
                         pawn2.jobs.StartJob(newJob, JobCondition.InterruptForced);
                         return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                     }
                 }
-
-                if (pawn2curJobdef == JobDefOf.GotoWander || pawn2curJobdef == JobDefOf.Wait_Wander)
-                {
-
-                    if (!pawn2.CanReach(sleepingSpot2, PathEndMode.OnCell, Danger.Deadly))
-                    {
-                        tempData2.lastCheckTick += 3000;
-                        doItLater = true;
-                        continue;
-                    }
-
-                    if (!pawn.CanReach(sleepingSpot, PathEndMode.OnCell, Danger.Deadly))
-                    {
-                        tempData.lastCheckTick += 1500;
-                        tempData.lastTryTick += 3000;
-                        return null;
-                    }
-                    tempData2.lastCheckTick += 300;
-                    tempData2.lastTryTick += 900;
-                    tempData.lastTryTick += 2500;
-                    Job newJob = JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed);
-                    pawn2.jobs.StartJob(newJob, JobCondition.InterruptForced);
-                    return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
-                }
             }
-
-
-            if (sharedBedNonSpouse > 0)
+            if (pawn.lastTryCount() > 5)
             {
-                tempData.lastTryTick = ticksGame + 30000;
+                pawn.lastTryCount() = 0;
             }
-            else if (doItLater)
+            pawn.lastTryCount()++;
+            if (sharedBedNonSpouse == 0)
             {
-                tempData.lastTryTick = ticksGame + 2500;
+                pawn.lastTryTick() = lastCheckTickTemp + (pawn.lastTryCount() * Rand.Range(200, 750));
+                return null;
             }
-            else
-            {
-                tempData.lastTryTick = ticksGame + Rand.Range(200, 500);
-            }
-
-            if (lastCheckTickTemp != int.MaxValue)
-            {
-                tempData.lastTryTick = lastCheckTickTemp + 30;
-            }
+            pawn.lastTryTick() += (pawn.lastTryCount() * Rand.Range(200, 750)) + sharedBedNonSpouse;
             return null;
         }
     }
@@ -766,10 +774,9 @@ namespace eqdseq
     public class JobDriver_IdleLovin : JobDriver
     {
         private int ticksLeft = 3200;
-        private int ticksReady = 1500;
+        private int ticksReady = 2200;
 
         private TargetIndex PartnerInd = TargetIndex.A;
-
         private TargetIndex BedInd = TargetIndex.B;
 
         private const int TicksBetweenHeartMotes = 100;
@@ -814,18 +821,35 @@ namespace eqdseq
         {
         }
 
+        public override string GetReport()
+        {
+            return JobDefOf.Lovin.reportString;
+        }
+
         protected override IEnumerable<Toil> MakeNewToils()
         {
-            this.FailOnDespawnedOrNull(BedInd);
-            this.FailOnDespawnedOrNull(PartnerInd);
-            if ((pawn.Position == RestUtility.GetBedSleepingSlotPosFor(pawn, Bed)) || pawn.needs != null && pawn.needs.rest != null && pawn.needs.rest.CurLevel < 0.34f)
+            //this.FailOnDespawnedOrNull(BedInd);
+            //this.FailOnDespawnedOrNull(PartnerInd);
+
+            if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+            {
+                pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+            }
+            else if ((pawn.Position == RestUtility.GetBedSleepingSlotPosFor(pawn, Bed)) || (pawn.needs != null && pawn.needs.rest != null && pawn.needs.rest.CurLevel < 0.34f))
             {
                 this.KeepLyingDown(BedInd);
             }
+            pawn.layDownState() = false;
+            pawn.lastTryCount() = 0;
 
             Toil gotoBed = ToilMaker.MakeToil("GotoBed1");
             gotoBed.initAction = delegate
             {
+                if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+                {
+                    pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    return;
+                }
                 IntVec3 bedSleepingSlotPosFor = RestUtility.GetBedSleepingSlotPosFor(pawn, Bed);
                 if (pawn.Position == bedSleepingSlotPosFor)
                 {
@@ -841,6 +865,16 @@ namespace eqdseq
             {
                 if (pawn.IsHashIntervalTick(100, delta))
                 {
+                    if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+                    {
+                        pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+                        return;
+                    }
+                    if (!pawn.initLastTryTick())
+                    {
+                        pawn.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(500, 5000);
+                        pawn.initLastTryTick() = true;
+                    }
                     if (Partner.CurJob == null || Partner.CurJob.def != eJobDefOf.IdleLovin || Partner.health == null || !Partner.health.capacities.CanBeAwake)
                     {
                         if (pawn.jobs.curDriver.ticksLeftThisToil != 0)
@@ -855,15 +889,16 @@ namespace eqdseq
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    Map map = Bed.Map;
                     foreach (IntVec3 item in Bed.OccupiedRect())
                     {
-                        if (item.ContainsStaticFire(Bed.Map))
+                        if (item.ContainsStaticFire(map))
                         {
                             pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                             return;
                         }
                     }
-                    if (Bed.Position.GetVacuum(Bed.Map) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                    if (Bed.Position.GetVacuum(map) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
@@ -876,6 +911,11 @@ namespace eqdseq
             Toil toil = ToilMaker.MakeToil("MakeNewToils");
             toil.initAction = delegate
             {
+                if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+                {
+                    pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    return;
+                }
                 if (Partner.jobs.posture != PawnPosture.LayingInBed)
                 {
                     ticksLeft = (int)(2500f * Mathf.Clamp(Rand.Range(0.6f, 1.1f), 0.1f, 2f));
@@ -893,6 +933,11 @@ namespace eqdseq
             Toil toil1 = ToilMaker.MakeToil("LayDown1");
             toil1.initAction = delegate
             {
+                if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+                {
+                    pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    return;
+                }
                 Pawn_PathFollower pather = pawn.pather;
                 if (pather != null)
                 {
@@ -907,18 +952,20 @@ namespace eqdseq
                     return;
                 }
                 pawn.jobs.posture = PawnPosture.LayingInBed;
+                pawn.layDownState() = true;
                 PortraitsCache.SetDirty(pawn);
             };
             toil1.AddPreTickIntervalAction(delegate (int delta)
             {
                 ticksReady -= delta;
-                if (Partner.jobs.posture == PawnPosture.LayingInBed)
+                if (Partner != null && Partner.layDownState())
                 {
-                    if (pawn.Map != Bed.Map)
+                    if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || !Partner.Spawned || Partner.Map != pawn.Map)
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    pawn.layDownState() = true;
                     if (Bed.IsOwner(pawn, out var assignedSleepingSlot))
                     {
                         if (pawn.Position != Bed.GetSleepingSlotPos(assignedSleepingSlot.Value))
@@ -948,6 +995,7 @@ namespace eqdseq
 
                     if (Partner.CurJob != null && Partner.CurJob.def == eJobDefOf.IdleLovin && Partner.health != null && Partner.health.capacities.CanBeAwake && LovePartnerRelationUtility.LovePartnerRelationExists(pawn, Partner))
                     {
+        
                         ReadyForNextToil();
                     }
                     else
@@ -958,19 +1006,27 @@ namespace eqdseq
                 }
                 else if (pawn.IsHashIntervalTick(100, delta))
                 {
+                    if (!pawn.initLastTryTick())
+                    {
+                        pawn.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(500, 5000);
+                        pawn.initLastTryTick() = true;
+                        pawn.layDownState() = true;
+                    }
+                    if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+                    {
+                        pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+                        return;
+                    }
                     if (Partner.CurJob == null || Partner.CurJob.def != eJobDefOf.IdleLovin || ticksReady < 0 || Partner.health == null || !Partner.health.capacities.CanBeAwake || !LovePartnerRelationUtility.LovePartnerRelationExists(pawn, Partner))
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
-                    if (pawn.Map != Bed.Map)
-                    {
-                        pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
-                        return;
-                    }
+
+                    IntVec3 pawnPos = pawn.Position;
                     if (Bed.IsOwner(pawn, out var assignedSleepingSlot))
                     {
-                        if (pawn.Position != Bed.GetSleepingSlotPos(assignedSleepingSlot.Value))
+                        if (pawnPos != Bed.GetSleepingSlotPos(assignedSleepingSlot.Value))
                         {
                             pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                             return;
@@ -981,26 +1037,28 @@ namespace eqdseq
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    Map bedMap = Bed.Map;
+                    IntVec3 bedPos = Bed.Position;
                     foreach (IntVec3 item in Bed.OccupiedRect())
                     {
-                        if (item.ContainsStaticFire(Bed.Map))
+                        if (item.ContainsStaticFire(bedMap))
                         {
                             pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                             return;
                         }
                     }
-                    if (!pawn.SafeTemperatureAtCell(Bed.Position, Bed.Map))
+                    if (!pawn.SafeTemperatureAtCell(bedPos, bedMap))
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
-                    if (Bed.Position.GetVacuum(Bed.Map) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                    if (bedPos.GetVacuum(bedMap) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
 
-                    FleckMaker.ThrowMetaIcon(pawn.Position, pawn.Map, FleckDefOf.Meditating);
+                    FleckMaker.ThrowMetaIcon(pawnPos, pawn.Map, FleckDefOf.Meditating);
                 }
             });
             toil1.socialMode = RandomSocialMode.Normal;
@@ -1010,6 +1068,11 @@ namespace eqdseq
             Toil toil2 = ToilMaker.MakeToil("LayDown2");
             toil2.initAction = delegate
             {
+                if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+                {
+                    pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    return;
+                }
                 Pawn_PathFollower pather = pawn.pather;
                 if (pather != null)
                 {
@@ -1023,6 +1086,7 @@ namespace eqdseq
                     return;
                 }
                 pawn.jobs.posture = PawnPosture.LayingInBed;
+                pawn.layDownState() = true;
                 PortraitsCache.SetDirty(pawn);
                 if (pawn.thingIDNumber < Partner.thingIDNumber)
                 {
@@ -1042,19 +1106,27 @@ namespace eqdseq
                 }
                 else if (pawn.IsHashIntervalTick(100, delta))
                 {
+                    if (!pawn.initLastTryTick())
+                    {
+                        pawn.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(500, 5000);
+                        pawn.initLastTryTick() = true;
+                        pawn.layDownState() = true;
+                    }
+                    if (Bed == null || !Bed.Spawned || Bed.Map != pawn.Map || Partner == null || !Partner.Spawned || Partner.Map != pawn.Map)
+                    {
+                        pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
+                        return;
+                    }
                     if (Partner.CurJob == null || Partner.CurJob.def != eJobDefOf.IdleLovin || Partner.health == null || !Partner.health.capacities.CanBeAwake)
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
-                    if (pawn.Map != Bed.Map)
-                    {
-                        pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
-                        return;
-                    }
+
+                    IntVec3 pawnPos = pawn.Position;
                     if (Bed.IsOwner(pawn, out var assignedSleepingSlot))
                     {
-                        if (pawn.Position != Bed.GetSleepingSlotPos(assignedSleepingSlot.Value))
+                        if (pawnPos != Bed.GetSleepingSlotPos(assignedSleepingSlot.Value))
                         {
                             pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                             return;
@@ -1065,31 +1137,34 @@ namespace eqdseq
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    Map bedMap = Bed.Map;
+                    IntVec3 bedPos = Bed.Position;
                     foreach (IntVec3 item in Bed.OccupiedRect())
                     {
-                        if (item.ContainsStaticFire(Bed.Map))
+                        if (item.ContainsStaticFire(bedMap))
                         {
                             pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                             return;
                         }
                     }
-                    if (!pawn.SafeTemperatureAtCell(Bed.Position, Bed.Map))
+                    if (!pawn.SafeTemperatureAtCell(bedPos, bedMap))
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
-                    if (Bed.Position.GetVacuum(Bed.Map) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                    if (Bed.Position.GetVacuum(bedMap) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
                     {
                         pawn.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
-                    FleckMaker.ThrowMetaIcon(pawn.Position, pawn.Map, FleckDefOf.Heart);
+                    FleckMaker.ThrowMetaIcon(pawnPos, pawn.Map, FleckDefOf.Heart);
                 }
             });
             toil2.AddFinishAction(delegate
             {
                 if (base.pawn.health == null || base.pawn.health.hediffSet == null || Partner == null || Partner.health == null || Partner.health.hediffSet == null)
                 {
+                    pawn.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(500, 5000);
                     return;
                 }
 
@@ -1112,9 +1187,8 @@ namespace eqdseq
                 float nums = GenerateRandomMinTicksToNextLovin(base.pawn);
                 base.pawn.mindState.canLovinTick = Find.TickManager.TicksGame + (int)(nums * 2500f);
 
-                PawnTempData tempData = PawnTempDataManager.GetOrCreateData(pawn.thingIDNumber);
-                tempData.lastTryTick = Find.TickManager.TicksGame + GenerateRandomMinTicksToNextIdleLovin(base.pawn, Partner, nums);
-                tempData.lastCheckTick = Rand.Range(base.pawn.mindState.canLovinTick, tempData.lastTryTick);
+                pawn.lastTryTick() = Find.TickManager.TicksGame + GenerateRandomMinTicksToNextIdleLovin(base.pawn, Partner, nums);
+                pawn.lastCheckTick() = Rand.Range(base.pawn.mindState.canLovinTick, pawn.lastTryTick());
 
 
                 //if (Prefs.DevMode)
