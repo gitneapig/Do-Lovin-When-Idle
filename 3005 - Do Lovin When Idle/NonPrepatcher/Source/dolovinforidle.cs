@@ -39,7 +39,7 @@ namespace eqdseq
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"[Do Lovin' When Idle] Exception while patching : [Yayo Animation]: {ex}");
+                    Log.Error($"[Do Lovin' When Idle] Exception while patching : YayoAnimation.AnimationCore: {ex}");
                 }
             }
             if (LoadedModManager.RunningModsListForReading.Any(mod => mod.PackageIdPlayerFacing == "telardo.RomanceOnTheRim"))
@@ -61,12 +61,11 @@ namespace eqdseq
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"[Do Lovin' When Idle] Exception while patching : [Romance On The Rim]: {ex}");
+                    Log.Error($"[Do Lovin' When Idle] Exception while patching : eqdseq.JobDriver_IdleLovin: {ex}");
                 }
             }
         }
     }
-
     public static class HarmonyPatches_Transpiler
     {
         public static IEnumerable<CodeInstruction> RimWorld_JoyUtility_JoyTickCheckEnd(IEnumerable<CodeInstruction> instructions)
@@ -102,7 +101,7 @@ namespace eqdseq
                     codes.Insert(i + 3, new CodeInstruction(OpCodes.Brfalse_S, skipSetLabel));
                     codes.Insert(i + 4, new CodeInstruction(OpCodes.Ldstr, "Lovin"));
                     codes.Insert(i + 5, new CodeInstruction(OpCodes.Starg_S, 2));
-                    Log.Message("Do Lovin' When Idle + Yayo's Animation (Continued) = Success.");
+                    Log.Message("[Do Lovin' When Idle]: [Yayo's Animation (Continued)] was discovered and a compatibility patch has been applied. Target classes:: YayoAnimation.AnimationCore");
                     break;
                 }
             }
@@ -112,7 +111,6 @@ namespace eqdseq
         {
             var codes = new List<CodeInstruction>(instructions);
             MethodInfo method = typeof(RomanceOnTheRim.RomanceUtility).GetMethod("TryAffectRomanceNeedLevel");
-
             for (int i = 0; i < codes.Count; i++)
             {
                 if (codes[i].opcode == OpCodes.Ret)
@@ -121,20 +119,18 @@ namespace eqdseq
                     codes.Insert(i + 1, new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(JobDriver), "pawn")));
                     codes.Insert(i + 2, new CodeInstruction(OpCodes.Ldc_R4, 0.5f));
                     codes.Insert(i + 3, new CodeInstruction(OpCodes.Call, method));
-                    Log.Message("Do Lovin' When Idle + RomanceOnTheRim = Success.");
+                    Log.Message("[Do Lovin' When Idle]: [Romance On The Rim] was discovered and a compatibility patch has been applied. Target classes:: eqdseq.JobDriver_IdleLovin");
                     break;
                 }
             }
             return codes;
         }
     }
-
     public class DoLovinWhenIdleMod : Mod
     {
         public DoLovinWhenIdleMod(ModContentPack mod) : base(mod)
         {
             base.GetSettings<DoLovinWhenIdleSettings>();
-
             if (DoLovinWhenIdleSettings.NoStopRecreation)
             {
                 var harmony = new Harmony("eqdseq.dolovinforidle");
@@ -170,13 +166,11 @@ namespace eqdseq
         }
         public static bool NoStopRecreation = true;
     }
-
     [DefOf]
     public static class eJobDefOf
     {
         public static JobDef IdleLovin;
     }
-
     public class IdleLovinUtility
     {
         public static float GetLovinMtbHours(Pawn pawn, Pawn partner)
@@ -234,25 +228,22 @@ namespace eqdseq
             return num / ageFactor;
         }
     }
-
     public class DoLovinWhenIdleComponent : GameComponent
     {
-        private Game unusedMyComponent;
+        //private Game unusedMyComponent;
         public DoLovinWhenIdleComponent(Game game)
         {
-            unusedMyComponent = game;
+            //unusedMyComponent = game;
             PawnTempDataManager.Reset();
         }
-        public override void LoadedGame()
-        {
-            unusedMyComponent.components.Remove(this);
-        }
+        //public override void LoadedGame()
+        //{
+        //    unusedMyComponent.components.Remove(this);
+        //}
         public override void ExposeData()
         {
-
         }
     }
-
     public class PawnTempData
     {
         public int lastCheckTick = 0;
@@ -289,7 +280,6 @@ namespace eqdseq
             return newData;
         }
     }
-
     public class JobGiver_IdleLovin : ThinkNode_JobGiver
     {
         protected override Job TryGiveJob(Pawn pawn)
@@ -567,8 +557,14 @@ namespace eqdseq
                     lastCheckTickTemp = tempData2.lastCheckTick;
                     continue;
                 }
+                if (jobs2.curDriver == null)
+                {
+                    tempData2.lastCheckTick = ticksGame + 999;
+                    lastCheckTickTemp = tempData2.lastCheckTick;
+                    continue;
+                }
                 JobTag lastJobTag = pawn2.mindState.lastJobTag;
-                if (pawn2curJobdef == JobDefOf.Wait_Asleep && lastJobTag == JobTag.SatisfyingNeeds && sleepingSpot2 == pawn2.Position && jobs2.posture == PawnPosture.LayingInBed)
+                if (jobs2.curDriver.asleep && lastJobTag == JobTag.SatisfyingNeeds && sleepingSpot2 == pawn2.Position && jobs2.posture == PawnPosture.LayingInBed)
                 {
                     if (!pawn2.health.capacities.CanBeAwake)
                     {
@@ -636,14 +632,8 @@ namespace eqdseq
                         return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                     }
                 }
-                if (((lastJobTag == JobTag.SatisfyingNeeds && pawn2curJobdef.joyKind != null) || (lastJobTag == JobTag.Idle && pawn2curJobdef != eJobDefOf.IdleLovin)))
+                if (((lastJobTag == JobTag.SatisfyingNeeds && pawn2curJobdef.joyKind != null) || (pawn2curJobdef != eJobDefOf.IdleLovin && lastJobTag == JobTag.Idle)))
                 {
-                    if (jobs2.curDriver == null)
-                    {
-                        tempData2.lastCheckTick = ticksGame + 999;
-                        lastCheckTickTemp = tempData2.lastCheckTick;
-                        continue;
-                    }
                     int num2 = pawn2.jobs.curDriver.ticksLeftThisToil;
                     if (num2 > 0 && num2 < 1400 && jobs2.curJob.count == -1)
                     {
@@ -739,7 +729,7 @@ namespace eqdseq
             {
                 Building_Bed bed = this.Bed;
                 Pawn actor = this.pawn;
-                if (bed == null || !bed.Spawned || bed.Map != actor.Map)
+                if (bed == null || !bed.Spawned || bed.Map == null || bed.Map != actor.Map)
                 {
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
@@ -755,6 +745,8 @@ namespace eqdseq
                 if (bedSleepingSlotPosFor == actor.Position)
                 {
                     this.KeepLyingDown(BedInd);
+                    actor.jobs.posture = PawnPosture.LayingInBed;
+                    actor.jobs.curDriver.ReadyForNextToil();
                 }
                 else
                 {
@@ -818,6 +810,12 @@ namespace eqdseq
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    IntVec3 bedSleepingSlotPosFor = RestUtility.GetBedSleepingSlotPosFor(actor, bed);
+                    if (bedSleepingSlotPosFor == actor.Position)
+                    {
+                        actor.jobs.posture = PawnPosture.LayingInBed;
+                        actor.jobs.curDriver.ReadyForNextToil();
+                    }
                 }
             });
             gotoBed.defaultCompleteMode = ToilCompleteMode.PatherArrival;
@@ -827,7 +825,7 @@ namespace eqdseq
             {
                 Building_Bed bed = this.Bed;
                 Pawn actor = this.pawn;
-                if (bed == null || !bed.Spawned || bed.Map != actor.Map)
+                if (bed == null || !bed.Spawned || bed.Map == null || bed.Map != actor.Map)
                 {
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
@@ -916,7 +914,6 @@ namespace eqdseq
                     {
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
-
                     }
                     ReadyForNextToil();
                 }
@@ -1109,6 +1106,7 @@ namespace eqdseq
                 Pawn actor2 = Partner;
                 HediffSet hediffSet = actor.health?.hediffSet;
                 HediffSet hediffSet2 = actor2?.health?.hediffSet;
+                int ticksGame = Find.TickManager.TicksGame;
                 PawnTempData tempData = PawnTempDataManager.GetOrCreateData(actor.thingIDNumber);
                 if (hediffSet == null || hediffSet2 == null)
                 {
@@ -1126,7 +1124,6 @@ namespace eqdseq
                 HistoryEventDef def = (actor.relations.DirectRelationExists(PawnRelationDefOf.Spouse, actor2) ? HistoryEventDefOf.GotLovin_Spouse : HistoryEventDefOf.GotLovin_NonSpouse);
                 Find.HistoryEventsManager.RecordEvent(new HistoryEvent(def, actor.Named(HistoryEventArgsNames.Doer)));
                 float nums = GenerateRandomMinTicksToNextLovin(actor);
-                int ticksGame = Find.TickManager.TicksGame;
                 int canLovinTick = ticksGame + (int)(nums * 2500f);
                 actor.mindState.canLovinTick = canLovinTick;
                 tempData.lastTryTick = ticksGame + GenerateRandomMinTicksToNextIdleLovin(actor, actor2, nums);
@@ -1135,7 +1132,7 @@ namespace eqdseq
                 {
                     Pawn pawn = ((actor.gender == Gender.Male) ? actor : ((actor2.gender == Gender.Male) ? actor2 : null));
                     Pawn pawn2 = ((actor.gender == Gender.Female) ? actor : ((actor2.gender == Gender.Female) ? actor2 : null));
-                    if (pawn != null && pawn2 != null && Rand.Chance(0.01f * PregnancyUtility.PregnancyChanceForPartners(pawn2, pawn)))
+                    if (pawn != null && pawn2 != null && Rand.Chance(0.005f * PregnancyUtility.PregnancyChanceForPartners(pawn2, pawn)))
                     {
                         GeneSet inheritedGeneSet = PregnancyUtility.GetInheritedGeneSet(pawn, pawn2, out bool success);
                         if (success)
@@ -1177,6 +1174,10 @@ namespace eqdseq
             if (num < 0.5f)
             {
                 num = 0.5f;
+            }
+            if (num > 36f)
+            {
+                num = 36f;
             }
             return num;
         }

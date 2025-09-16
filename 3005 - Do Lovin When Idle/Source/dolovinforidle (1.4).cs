@@ -16,7 +16,6 @@ using Verse.AI;
 namespace eqdseq
 {
     [StaticConstructorOnStartup]
-
     public static class HarmonyPatches
     {
         static HarmonyPatches()
@@ -41,7 +40,7 @@ namespace eqdseq
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"[Do Lovin' When Idle] Exception while patching : [Yayo Animation]: {ex}");
+                    Log.Error($"[Do Lovin' When Idle] Exception while patching : YayoAnimation.AnimationCore: {ex}");
                 }
             }
             if (LoadedModManager.RunningModsListForReading.Any(mod => mod.PackageIdPlayerFacing == "telardo.RomanceOnTheRim"))
@@ -63,12 +62,33 @@ namespace eqdseq
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"[Do Lovin' When Idle] Exception while patching : [Romance On The Rim]: {ex}");
+                    Log.Error($"[Do Lovin' When Idle] Exception while patching : eqdseq.JobDriver_IdleLovin: {ex}");
                 }
             }
+            //if (LoadedModManager.RunningModsListForReading.Any(mod => mod.PackageIdPlayerFacing == "telardo.MultiFloors"))
+            //{
+            //    try
+            //    {
+            //        var IdleLovinType = AccessTools.TypeByName("eqdseq.DLWI_ModExtension");
+            //        if (IdleLovinType != null)
+            //        {
+            //            var method = AccessTools.Method(IdleLovinType, "ExMultiFloorsCanReach");
+            //            if (method != null)
+            //            {
+            //                harmony.Patch(
+            //                    original: method,
+            //                    transpiler: new HarmonyMethod(typeof(HarmonyPatches_Transpiler), nameof(HarmonyPatches_Transpiler.DoLovinWhenIdle_MultiFloors_Transpiler))
+            //                );
+            //            }
+            //        }
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        Log.Error($"[Do Lovin' When Idle] Exception while patching : eqdseq.DLWI_ModExtension: {ex}");
+            //    }
+            //}
         }
     }
-
     public static class HarmonyPatches_Transpiler
     {
         public static IEnumerable<CodeInstruction> RimWorld_JoyUtility_JoyTickCheckEnd(IEnumerable<CodeInstruction> instructions)
@@ -104,7 +124,7 @@ namespace eqdseq
                     codes.Insert(i + 3, new CodeInstruction(OpCodes.Brfalse_S, skipSetLabel));
                     codes.Insert(i + 4, new CodeInstruction(OpCodes.Ldstr, "Lovin"));
                     codes.Insert(i + 5, new CodeInstruction(OpCodes.Starg_S, 2));
-                    Log.Message("Do Lovin' When Idle + Yayo's Animation (Continued) = Success.");
+                    Log.Message("[Do Lovin' When Idle]: [Yayo's Animation (Continued)] was discovered and a compatibility patch has been applied. Target classes:: YayoAnimation.AnimationCore");
                     break;
                 }
             }
@@ -114,7 +134,6 @@ namespace eqdseq
         {
             var codes = new List<CodeInstruction>(instructions);
             MethodInfo method = typeof(RomanceOnTheRim.RomanceUtility).GetMethod("TryAffectRomanceNeedLevel");
-
             for (int i = 0; i < codes.Count; i++)
             {
                 if (codes[i].opcode == OpCodes.Ret)
@@ -123,20 +142,37 @@ namespace eqdseq
                     codes.Insert(i + 1, new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(JobDriver), "pawn")));
                     codes.Insert(i + 2, new CodeInstruction(OpCodes.Ldc_R4, 0.5f));
                     codes.Insert(i + 3, new CodeInstruction(OpCodes.Call, method));
-                    Log.Message("Do Lovin' When Idle + RomanceOnTheRim = Success.");
+                    Log.Message("[Do Lovin' When Idle]: [Romance On The Rim] was discovered and a compatibility patch has been applied. Target classes:: eqdseq.JobDriver_IdleLovin");
                     break;
                 }
             }
             return codes;
         }
+        //public static IEnumerable<CodeInstruction> DoLovinWhenIdle_MultiFloors_Transpiler(IEnumerable<CodeInstruction> instructions)
+        //{
+        //    var codes = new List<CodeInstruction>(instructions);
+        //    MethodInfo method = typeof(MultiFloors.StairPathFinderUtility).GetMethod("CanReachAcrossLevel");
+        //    for (int i = 0; i < codes.Count; i++)
+        //    {
+        //        if (codes[i].opcode == OpCodes.Ldc_I4_0)
+        //        {
+        //            codes.Insert(i + 0, new CodeInstruction(OpCodes.Ldarg_0, null));
+        //            codes.Insert(i + 1, new CodeInstruction(OpCodes.Ldarg_1, null));
+        //            codes.Insert(i + 2, new CodeInstruction(OpCodes.Ldarg_2, null));
+        //            codes.Insert(i + 3, new CodeInstruction(OpCodes.Ldarg_3, null));
+        //            codes[i + 4] = new CodeInstruction(OpCodes.Call, method);
+        //            Log.Message("[Do Lovin' When Idle]: [MultiFloors] was discovered and a compatibility patch has been applied. Target classes:: eqdseq.DLWI_ModExtension");
+        //            break;
+        //        }
+        //    }
+        //    return codes;
+        //}
     }
-
     public class DoLovinWhenIdleMod : Mod
     {
         public DoLovinWhenIdleMod(ModContentPack mod) : base(mod)
         {
             base.GetSettings<DoLovinWhenIdleSettings>();
-
             if (DoLovinWhenIdleSettings.NoStopRecreation)
             {
                 var harmony = new Harmony("eqdseq.dolovinforidle");
@@ -172,7 +208,6 @@ namespace eqdseq
         }
         public static bool NoStopRecreation = true;
     }
-
     [DefOf]
     public static class eJobDefOf
     {
@@ -182,7 +217,6 @@ namespace eqdseq
         //    DefOfHelper.EnsureInitializedInCtor(typeof(eJobDefOf));
         //}
     }
-
     public class IdleLovinUtility
     {
         public static float GetLovinMtbHours(Pawn pawn, Pawn partner)
@@ -240,7 +274,6 @@ namespace eqdseq
             return num / ageFactor;
         }
     }
-
     public static class PawnTempData
     {
         [PrepatcherField]
@@ -255,9 +288,9 @@ namespace eqdseq
         [Prepatcher.DefaultValue(60000)]
         public static extern ref int lastTryTick(this Pawn target);
 
-        [PrepatcherField]
-        [Prepatcher.DefaultValue(false)]
-        public static extern ref bool layDownState(this Pawn target);
+        //[PrepatcherField]
+        //[Prepatcher.DefaultValue(false)]
+        //public static extern ref bool layDownState(this Pawn target);
 
         [PrepatcherField]
         [Prepatcher.DefaultValue(false)]
@@ -267,6 +300,26 @@ namespace eqdseq
         [Prepatcher.DefaultValue(1)]
         public static extern ref int lastTryCount(this Pawn target);
     }
+    //public static class DLWI_ModExtension
+    //{
+    //    public static bool ExMultiFloorsCanReach(Pawn p, Thing b, Map m, bool f)
+    //    {
+    //        //return MultiFloors.StairPathFinderUtility.CanReachAcrossLevel(p, b, m , f);
+    //        return false;
+    //    }
+    //    public static Job ExMultiFloorsJob(Pawn p, Pawn pt, Thing b, Map m, bool f)
+    //    {
+    //        Job job2 = JobMaker.MakeJob(eJobDefOf.IdleLovin, p, b);
+    //        ThinkResult thinkResult2 = new ThinkResult(job2, null, new JobTag?(JobTag.Misc), false);
+    //        MultiFloors.PrepatcherFields.NextJobThinkResult(pt) = thinkResult2;
+    //        Job job3 = MultiFloors.Jobs.CrossLevelJobFactory.MakeChangeLevelThroughStairJob(b, m, null);
+    //        pt.jobs.StartJob(job3, JobCondition.InterruptForced);
+    //        Job job = JobMaker.MakeJob(eJobDefOf.IdleLovin, pt, b);
+    //        ThinkResult thinkResult = new ThinkResult(job, null, new JobTag?(JobTag.Misc), false);
+    //        MultiFloors.PrepatcherFields.NextJobThinkResult(p) = thinkResult;
+    //        return MultiFloors.Jobs.CrossLevelJobFactory.MakeChangeLevelThroughStairJob(b, m, null);
+    //    }
+    //}
     public class JobGiver_IdleLovin : ThinkNode_JobGiver
     {
         //public JobGiver_IdleLovin() { }
@@ -276,7 +329,6 @@ namespace eqdseq
         //    {
         //        return 0f;
         //    }
-
         //    if (pawn.needs == null)
         //    {
         //        pawn.lastTryTick() = int.MaxValue;
@@ -284,7 +336,6 @@ namespace eqdseq
         //        Log.Error($"[DoLovinWhenIdle]{pawn.LabelShortCap} currently has an error or is incompatible. Please reload the game or remove this mod. DoLovinWhenIdle will remain disabled until the game is reloaded.");
         //        return 0f;
         //    }
-
         //    if (pawn.needs.joy != null && pawn.needs.joy.CurLevel < 0.5f)
         //    {
         //        pawn.lastTryTick() = Find.TickManager.TicksGame + 3000;
@@ -352,6 +403,11 @@ namespace eqdseq
                 pawn.lastTryTick() = ticksGame + 3900;
                 return null;
             }
+            //if (ownedBedPos.GetVacuum(ownedBedMap) >= 0.5f && pawn.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+            //{
+            //    pawn.lastTryTick() = ticksGame + 10000 + (ticksGame % 2000);
+            //    return null;
+            //}
             Pawn_NeedsTracker needs = pawn.needs;
             if (needs == null)
             {
@@ -528,6 +584,12 @@ namespace eqdseq
                     lastCheckTickTemp = pawn2.lastCheckTick();
                     continue;
                 }
+                //if (ownedBedPos.GetVacuum(ownedBedMap) >= 0.5f && pawn2.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                //{
+                //    pawn2.lastCheckTick() = ticksGame + 10000 + (ticksGame % 2000);
+                //    lastCheckTickTemp = pawn2.lastCheckTick();
+                //    continue;
+                //}
                 if (pawn2.laborCheckTick() < ticksGame)
                 {
                     pawn2.laborCheckTick() = ticksGame;
@@ -574,8 +636,14 @@ namespace eqdseq
                     lastCheckTickTemp = pawn2.lastCheckTick();
                     continue;
                 }
+                if (jobs2.curDriver == null)
+                {
+                    pawn2.lastCheckTick() = ticksGame + 999;
+                    lastCheckTickTemp = pawn2.lastCheckTick();
+                    continue;
+                }
                 JobTag lastJobTag = pawn2.mindState.lastJobTag;
-                if (!flagm && pawn2curJobdef == JobDefOf.Wait_Asleep && lastJobTag == JobTag.SatisfyingNeeds && sleepingSpot2 == pawn2.Position && jobs2.posture == PawnPosture.LayingInBed)
+                if (!flagm && jobs2.curDriver.asleep && lastJobTag == JobTag.SatisfyingNeeds && sleepingSpot2 == pawn2.Position && jobs2.posture == PawnPosture.LayingInBed)
                 {
                     if (!pawn2.health.capacities.CanBeAwake)
                     {
@@ -603,6 +671,7 @@ namespace eqdseq
                     pawn2.lastTryTick() = ticksGame + 900;
                     pawn.lastTryTick() += 2500;
                     jobs2.StartJob(JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed), JobCondition.InterruptForced);
+                    //Log.Warning($"[{pawn.Label} at tick {Find.TickManager.TicksGame}] b1 start");
                     return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                 }
                 if (lastJobTag == JobTag.Idle)
@@ -636,17 +705,12 @@ namespace eqdseq
                         pawn2.lastTryTick() = ticksGame + 900;
                         pawn.lastTryTick() += 2500;
                         jobs2.StartJob(JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed), JobCondition.InterruptForced);
+                        //Log.Warning($"[{pawn.Label} at tick {Find.TickManager.TicksGame}] b2 start");
                         return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                     }
                 }
-                if (((lastJobTag == JobTag.SatisfyingNeeds && pawn2curJobdef.joyKind != null) || (lastJobTag == JobTag.Idle && pawn2curJobdef != eJobDefOf.IdleLovin)))
+                if (((lastJobTag == JobTag.SatisfyingNeeds && pawn2curJobdef.joyKind != null) || (pawn2curJobdef != eJobDefOf.IdleLovin && lastJobTag == JobTag.Idle)))
                 {
-                    if (jobs2.curDriver == null)
-                    {
-                        pawn2.lastCheckTick() = ticksGame + 999;
-                        lastCheckTickTemp = pawn2.lastCheckTick();
-                        continue;
-                    }
                     int num2 = pawn2.jobs.curDriver.ticksLeftThisToil;
                     if (num2 > 0 && num2 < 1400 && jobs2.curJob.count == -1)
                     {
@@ -681,6 +745,7 @@ namespace eqdseq
                         pawn2.lastTryTick() = ticksGame + 900;
                         pawn.lastTryTick() += 2500;
                         jobs2.StartJob(JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed), JobCondition.InterruptForced);
+                        //Log.Warning($"[{pawn.Label} at tick {Find.TickManager.TicksGame}] b3 start");
                         return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                     }
                 }
@@ -703,7 +768,6 @@ namespace eqdseq
     {
         private TargetIndex PartnerInd = TargetIndex.A;
         private TargetIndex BedInd = TargetIndex.B;
-
         private static readonly SimpleCurve LovinIntervalHoursFromAgeCurve = new SimpleCurve
     {
         new CurvePoint(16f, 1.5f),
@@ -716,12 +780,15 @@ namespace eqdseq
         private Building_Bed Bed => (Building_Bed)(Thing)job.GetTarget(BedInd);
         public override bool TryMakePreToilReservations(bool errorOnFailed)
         {
-            //if (pawn.Reserve(Partner, job, 1, -1, null, errorOnFailed))
-            //{
-            return pawn.Reserve(Bed, job, Bed.SleepingSlotsCount, 0, null, errorOnFailed);
-            //}
-
-            //return false;
+            if (pawn.Map != null && pawn.Map != Bed.Map)
+            {
+                return pawn.Reserve(Bed, job, Bed.SleepingSlotsCount, 0, null, errorOnFailed);
+            }
+            if (pawn.Reserve(Partner, job, 1, -1, null, errorOnFailed))
+            {
+                return pawn.Reserve(Bed, job, Bed.SleepingSlotsCount, 0, null, errorOnFailed);
+            }
+            return false;
         }
         public override bool CanBeginNowWhileLyingDown()
         {
@@ -742,7 +809,7 @@ namespace eqdseq
             {
                 Building_Bed bed = this.Bed;
                 Pawn actor = this.pawn;
-                if (bed == null || !bed.Spawned || bed.Map != actor.Map)
+                if (bed == null || !bed.Spawned || bed.Map == null || bed.Map != actor.Map)
                 {
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
@@ -753,13 +820,16 @@ namespace eqdseq
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
                 }
-                actor.layDownState() = false;
-                actor.lastTryCount() = 0;
+                //actor.layDownState() = false;
+                actor.lastTryCount() = 1;
                 ticksLeftThisToil = 8000;
                 IntVec3 bedSleepingSlotPosFor = RestUtility.GetBedSleepingSlotPosFor(actor, bed);
                 if (bedSleepingSlotPosFor == actor.Position)
                 {
                     this.KeepLyingDown(BedInd);
+                    actor.jobs.posture = PawnPosture.LayingInBed;
+                    //actor.layDownState() = true;
+                    actor.jobs.curDriver.ReadyForNextToil();
                 }
                 else
                 {
@@ -818,10 +888,22 @@ namespace eqdseq
                             return;
                         }
                     }
+                    //if (bed.Position.GetVacuum(map) >= 0.5f && actor.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                    //{
+                    //    actor.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    //    return;
+                    //}
                     if (ticksLeftThisToil < 0)
                     {
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
+                    }
+                    IntVec3 bedSleepingSlotPosFor = RestUtility.GetBedSleepingSlotPosFor(actor, bed);
+                    if (bedSleepingSlotPosFor == actor.Position)
+                    {
+                        actor.jobs.posture = PawnPosture.LayingInBed;
+                        //actor.layDownState() = true;
+                        actor.jobs.curDriver.ReadyForNextToil();
                     }
                 }
             });
@@ -832,7 +914,7 @@ namespace eqdseq
             {
                 Building_Bed bed = this.Bed;
                 Pawn actor = this.pawn;
-                if (bed == null || !bed.Spawned || bed.Map != actor.Map)
+                if (bed == null || !bed.Spawned || bed.Map == null || bed.Map != actor.Map)
                 {
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
@@ -853,7 +935,7 @@ namespace eqdseq
                     return;
                 }
                 actor.jobs.posture = PawnPosture.LayingInBed;
-                actor.layDownState() = true;
+                //actor.layDownState() = true;
                 PortraitsCache.SetDirty(actor);
                 ticksLeftThisToil = (int)(2500f * Mathf.Clamp(Rand.Range(0.6f, 1.1f), 0.1f, 2f));
             };
@@ -866,13 +948,13 @@ namespace eqdseq
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
                 }
-                if (partner.layDownState())
+                if (partner.jobs.posture == PawnPosture.LayingInBed)
                 {
                     if (!actor.initLastTryTick())
                     {
                         actor.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(1500, 3000);
                         actor.initLastTryTick() = true;
-                        actor.layDownState() = true;
+                        //actor.layDownState() = true;
                     }
                     if (!partner.Spawned || !partner.health.capacities.CanBeAwake)
                     {
@@ -919,11 +1001,15 @@ namespace eqdseq
                             return;
                         }
                     }
+                    //if (pos.GetVacuum(map) >= 0.5f && actor.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                    //{
+                    //    actor.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    //    return;
+                    //}
                     if (!LovePartnerRelationUtility.LovePartnerRelationExists(actor, partner))
                     {
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
-
                     }
                     ReadyForNextToil();
                 }
@@ -933,7 +1019,7 @@ namespace eqdseq
                     {
                         actor.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(1500, 3000);
                         actor.initLastTryTick() = true;
-                        actor.layDownState() = true;
+                        //actor.layDownState() = true;
                     }
                     if (!partner.Spawned || !partner.health.capacities.CanBeAwake)
                     {
@@ -995,6 +1081,11 @@ namespace eqdseq
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    //if (pos.GetVacuum(map) >= 0.5f && actor.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                    //{
+                    //    actor.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    //    return;
+                    //}
                     FleckMaker.ThrowMetaIcon(pos, map, FleckDefOf.Meditating);
                 }
             });
@@ -1032,7 +1123,7 @@ namespace eqdseq
                     return;
                 }
                 actor.jobs.posture = PawnPosture.LayingInBed;
-                actor.layDownState() = true;
+                //actor.layDownState() = true;
                 PortraitsCache.SetDirty(actor);
                 ticksLeftThisToil = (int)(2500f * Mathf.Clamp(Rand.Range(0.6f, 1.1f), 0.1f, 2f));
                 if (actor.thingIDNumber < partner.thingIDNumber)
@@ -1057,7 +1148,7 @@ namespace eqdseq
                     {
                         actor.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(1500, 3000);
                         actor.initLastTryTick() = true;
-                        actor.layDownState() = true;
+                        //actor.layDownState() = true;
                     }
                     Building_Bed bed = this.Bed;
                     if (bed == null || !bed.Spawned)
@@ -1110,6 +1201,11 @@ namespace eqdseq
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    //if (pos.GetVacuum(map) >= 0.5f && actor.GetStatValue(StatDefOf.VacuumResistance, true, 60) < 1f)
+                    //{
+                    //    actor.jobs.EndCurrentJob(JobCondition.Incompletable);
+                    //    return;
+                    //}
                     FleckMaker.ThrowMetaIcon(pos, map, FleckDefOf.Heart);
                 }
             });
@@ -1119,23 +1215,27 @@ namespace eqdseq
                 Pawn actor2 = Partner;
                 HediffSet hediffSet = actor.health?.hediffSet;
                 HediffSet hediffSet2 = actor2?.health?.hediffSet;
+                int ticksGame = Find.TickManager.TicksGame;
                 if (hediffSet == null || hediffSet2 == null)
                 {
-                    actor.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(2500, 5000);
+                    actor.lastTryTick() = ticksGame + Rand.Range(2500, 5000);
+                    actor.lastTryCount() = ticksGame + 2400;
                     return;
                 }
                 ModExtensionMessod(actor);
                 Thought_Memory thought_Memory = (Thought_Memory)ThoughtMaker.MakeThought(ThoughtDefOf.GotSomeLovin);
+                //int numm = 60000;
                 if ((hediffSet.hediffs.Any((Hediff h) => h.def == HediffDefOf.LoveEnhancer)) || (hediffSet2.hediffs.Any((Hediff h) => h.def == HediffDefOf.LoveEnhancer)))
                 {
                     thought_Memory.moodPowerFactor = 1.5f;
+                    //numm = 180000;
                 }
+                //thought_Memory.durationTicksOverride = numm;
                 actor.needs?.mood?.thoughts.memories.TryGainMemory(thought_Memory, actor2);
                 Find.HistoryEventsManager.RecordEvent(new HistoryEvent(HistoryEventDefOf.GotLovin, actor.Named(HistoryEventArgsNames.Doer)));
                 HistoryEventDef def = (actor.relations.DirectRelationExists(PawnRelationDefOf.Spouse, actor2) ? HistoryEventDefOf.GotLovin_Spouse : HistoryEventDefOf.GotLovin_NonSpouse);
                 Find.HistoryEventsManager.RecordEvent(new HistoryEvent(def, actor.Named(HistoryEventArgsNames.Doer)));
                 float nums = GenerateRandomMinTicksToNextLovin(actor);
-                int ticksGame = Find.TickManager.TicksGame;
                 int canLovinTick = ticksGame + (int)(nums * 2500f);
                 actor.mindState.canLovinTick = canLovinTick;
                 actor.lastTryTick() = ticksGame + GenerateRandomMinTicksToNextIdleLovin(actor, actor2, nums);
@@ -1144,7 +1244,7 @@ namespace eqdseq
                 {
                     Pawn pawn = ((actor.gender == Gender.Male) ? actor : ((actor2.gender == Gender.Male) ? actor2 : null));
                     Pawn pawn2 = ((actor.gender == Gender.Female) ? actor : ((actor2.gender == Gender.Female) ? actor2 : null));
-                    if (pawn != null && pawn2 != null && Rand.Chance(0.01f * PregnancyUtility.PregnancyChanceForPartners(pawn2, pawn)))
+                    if (pawn != null && pawn2 != null && Rand.Chance(0.005f * PregnancyUtility.PregnancyChanceForPartners(pawn2, pawn)))
                     {
                         GeneSet inheritedGeneSet = PregnancyUtility.GetInheritedGeneSet(pawn, pawn2, out bool success);
                         if (success)
@@ -1174,10 +1274,22 @@ namespace eqdseq
                     num *= item.def.lovinMTBFactor;
                 }
             }
+            //foreach (Hediff hediff in pawn.health.hediffSet.hediffs)
+            //{
+            //    HediffComp_GiveLovinMTBFactor hediffComp_GiveLovinMTBFactor = hediff.TryGetComp<HediffComp_GiveLovinMTBFactor>();
+            //    if (hediffComp_GiveLovinMTBFactor != null)
+            //    {
+            //        num *= hediffComp_GiveLovinMTBFactor.Props.lovinMTBFactor;
+            //    }
+            //}
             num = Rand.Gaussian(num, 0.3f);
             if (num < 0.5f)
             {
                 num = 0.5f;
+            }
+            if (num > 36f)
+            {
+                num = 36f;
             }
             return num;
         }
