@@ -311,7 +311,7 @@ namespace eqdseq
         [Prepatcher.DefaultValue(1)]
         public static extern ref int lastTryCount(this Pawn target);
     }
-    
+
     public static class DLWI_ModExtension
     {
         public static bool ExMultiFloorsCanReach(Pawn p, Thing b, Map m, bool f)
@@ -488,11 +488,11 @@ namespace eqdseq
                         return null;
                     }
                     if (pawn.lastTryTick() == 60000)
-                    {  
+                    {
                         pawn.lastCheckTick() += numr;
                         pawn.lastTryTick() = ticksGame + numr;
                         return null;
-                    }  
+                    }
                 }
                 pawn.laborCheckTick() = ticksGame;
                 if (hediffSet.InLabor(true))
@@ -673,7 +673,7 @@ namespace eqdseq
                     }
                 }
                 JobTag lastJobTag = pawn2.mindState.lastJobTag;
-                if (!flagm && pawn2curJobdef == JobDefOf.Wait_Asleep && lastJobTag == JobTag.SatisfyingNeeds && sleepingSpot2 == pawn2.Position && jobs2.posture == PawnPosture.LayingInBed)
+                if (!flagm && jobs2.curDriver.asleep && lastJobTag == JobTag.SatisfyingNeeds && sleepingSpot2 == pawn2.Position && jobs2.posture == PawnPosture.LayingInBed)
                 {
                     if (!pawn2.health.capacities.CanBeAwake)
                     {
@@ -701,6 +701,7 @@ namespace eqdseq
                     pawn2.lastTryTick() = ticksGame + 900;
                     pawn.lastTryTick() += 2500;
                     jobs2.StartJob(JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed), JobCondition.InterruptForced);
+                    Log.Warning($"[{pawn.Label} at tick {Find.TickManager.TicksGame}] b1 start");
                     return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                 }
                 if (lastJobTag == JobTag.Idle)
@@ -738,10 +739,11 @@ namespace eqdseq
                             return DLWI_ModExtension.ExMultiFloorsJob(pawn, pawn2, ownedBed, ownedBedMap, false);
                         }
                         jobs2.StartJob(JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed), JobCondition.InterruptForced);
+                        Log.Warning($"[{pawn.Label} at tick {Find.TickManager.TicksGame}] b2 start");
                         return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                     }
                 }
-                if (((lastJobTag == JobTag.SatisfyingNeeds && pawn2curJobdef.joyKind != null) || (lastJobTag == JobTag.Idle && pawn2curJobdef != eJobDefOf.IdleLovin)))
+                if (((lastJobTag == JobTag.SatisfyingNeeds && pawn2curJobdef.joyKind != null) || (pawn2curJobdef != eJobDefOf.IdleLovin && lastJobTag == JobTag.Idle)))
                 {
                     if (jobs2.curDriver == null)
                     {
@@ -787,6 +789,7 @@ namespace eqdseq
                             return DLWI_ModExtension.ExMultiFloorsJob(pawn, pawn2, ownedBed, ownedBedMap, false);
                         }
                         jobs2.StartJob(JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn, ownedBed), JobCondition.InterruptForced);
+                        Log.Warning($"[{pawn.Label} at tick {Find.TickManager.TicksGame}] b3 start");
                         return JobMaker.MakeJob(eJobDefOf.IdleLovin, pawn2, ownedBed);
                     }
                 }
@@ -822,12 +825,15 @@ namespace eqdseq
         private Building_Bed Bed => (Building_Bed)(Thing)job.GetTarget(BedInd);
         public override bool TryMakePreToilReservations(bool errorOnFailed)
         {
-            //if (pawn.Reserve(Partner, job, 1, -1, null, errorOnFailed))
-            //{
+            if (pawn.Map != null && pawn.Map != Bed.Map)
+            {
                 return pawn.Reserve(Bed, job, Bed.SleepingSlotsCount, 0, null, errorOnFailed);
-            //}
-
-            //return false;
+            }
+            if (pawn.Reserve(Partner, job, 1, -1, null, errorOnFailed))
+            {
+                return pawn.Reserve(Bed, job, Bed.SleepingSlotsCount, 0, null, errorOnFailed);
+            }
+            return false;
         }
         public override bool CanBeginNowWhileLyingDown()
         {
@@ -848,7 +854,7 @@ namespace eqdseq
             {
                 Building_Bed bed = this.Bed;
                 Pawn actor = this.pawn;
-                if (bed == null || !bed.Spawned || bed.Map != actor.Map)
+                if (bed == null || !bed.Spawned || bed.Map == null || bed.Map != actor.Map)
                 {
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
@@ -860,12 +866,15 @@ namespace eqdseq
                     return;
                 }
                 actor.layDownState() = false;
-                actor.lastTryCount() = 0;
+                actor.lastTryCount() = 1;
                 ticksLeftThisToil = 8000;
                 IntVec3 bedSleepingSlotPosFor = RestUtility.GetBedSleepingSlotPosFor(actor, bed);
                 if (bedSleepingSlotPosFor == actor.Position)
                 {
                     this.KeepLyingDown(BedInd);
+                    actor.jobs.posture = PawnPosture.LayingInBed;
+                    actor.layDownState() = true;
+                    actor.jobs.curDriver.ReadyForNextToil();
                 }
                 else
                 {
@@ -934,6 +943,13 @@ namespace eqdseq
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
                     }
+                    IntVec3 bedSleepingSlotPosFor = RestUtility.GetBedSleepingSlotPosFor(actor, bed);
+                    if (bedSleepingSlotPosFor == actor.Position)
+                    {
+                        actor.jobs.posture = PawnPosture.LayingInBed;
+                        actor.layDownState() = true;
+                        actor.jobs.curDriver.ReadyForNextToil();
+                    }
                 }
             });
             gotoBed.defaultCompleteMode = ToilCompleteMode.PatherArrival;
@@ -943,7 +959,7 @@ namespace eqdseq
             {
                 Building_Bed bed = this.Bed;
                 Pawn actor = this.pawn;
-                if (bed == null || !bed.Spawned || bed.Map != actor.Map)
+                if (bed == null || !bed.Spawned || bed.Map == null || bed.Map != actor.Map)
                 {
                     actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                     return;
@@ -985,7 +1001,7 @@ namespace eqdseq
                         actor.initLastTryTick() = true;
                         actor.layDownState() = true;
                     }
-                    if (!partner.Spawned || !partner.health.capacities.CanBeAwake)
+                    if (!partner.Spawned || !partner.health.capacities.CanBeAwake || partner.jobs.posture != PawnPosture.LayingInBed)
                     {
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
@@ -1039,7 +1055,7 @@ namespace eqdseq
                     {
                         actor.jobs.EndCurrentJob(JobCondition.Incompletable);
                         return;
-                        
+
                     }
                     ReadyForNextToil();
                 }
@@ -1245,23 +1261,27 @@ namespace eqdseq
                 Pawn actor2 = Partner;
                 HediffSet hediffSet = actor.health?.hediffSet;
                 HediffSet hediffSet2 = actor2?.health?.hediffSet;
+                int ticksGame = Find.TickManager.TicksGame;
                 if (hediffSet == null || hediffSet2 == null)
                 {
-                    actor.lastTryTick() = Find.TickManager.TicksGame + Rand.Range(2500, 5000);
+                    actor.lastTryTick() = ticksGame + Rand.Range(2500, 5000);
+                    actor.lastTryCount() = ticksGame + 2400;
                     return;
                 }
                 ModExtensionMessod(actor);
                 Thought_Memory thought_Memory = (Thought_Memory)ThoughtMaker.MakeThought(ThoughtDefOf.GotSomeLovin);
+                //int numm = 60000;
                 if ((hediffSet.hediffs.Any((Hediff h) => h.def == HediffDefOf.LoveEnhancer)) || (hediffSet2.hediffs.Any((Hediff h) => h.def == HediffDefOf.LoveEnhancer)))
                 {
                     thought_Memory.moodPowerFactor = 1.5f;
+                    //numm = 180000;
                 }
+                //thought_Memory.durationTicksOverride = numm;
                 actor.needs?.mood?.thoughts.memories.TryGainMemory(thought_Memory, actor2);
                 Find.HistoryEventsManager.RecordEvent(new HistoryEvent(HistoryEventDefOf.GotLovin, actor.Named(HistoryEventArgsNames.Doer)));
                 HistoryEventDef def = (actor.relations.DirectRelationExists(PawnRelationDefOf.Spouse, actor2) ? HistoryEventDefOf.GotLovin_Spouse : HistoryEventDefOf.GotLovin_NonSpouse);
                 Find.HistoryEventsManager.RecordEvent(new HistoryEvent(def, actor.Named(HistoryEventArgsNames.Doer)));
                 float nums = GenerateRandomMinTicksToNextLovin(actor);
-                int ticksGame = Find.TickManager.TicksGame;
                 int canLovinTick = ticksGame + (int)(nums * 2500f);
                 actor.mindState.canLovinTick = canLovinTick;
                 actor.lastTryTick() = ticksGame + GenerateRandomMinTicksToNextIdleLovin(actor, actor2, nums);
@@ -1270,7 +1290,7 @@ namespace eqdseq
                 {
                     Pawn pawn = ((actor.gender == Gender.Male) ? actor : ((actor2.gender == Gender.Male) ? actor2 : null));
                     Pawn pawn2 = ((actor.gender == Gender.Female) ? actor : ((actor2.gender == Gender.Female) ? actor2 : null));
-                    if (pawn != null && pawn2 != null && Rand.Chance(0.01f * PregnancyUtility.PregnancyChanceForPartners(pawn2, pawn)))
+                    if (pawn != null && pawn2 != null && Rand.Chance(0.005f * PregnancyUtility.PregnancyChanceForPartners(pawn2, pawn)))
                     {
                         GeneSet inheritedGeneSet = PregnancyUtility.GetInheritedGeneSet(pawn, pawn2, out bool success);
                         if (success)
