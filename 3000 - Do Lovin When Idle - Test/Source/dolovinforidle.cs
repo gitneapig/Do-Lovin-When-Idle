@@ -327,8 +327,8 @@ namespace eqdseq
             }
             DLWI_DictionaryField newData = new DLWI_DictionaryField();
             pawnData.Add(pawn, newData);
-            newData.lastTryTick = Find.TickManager.TicksGame + Rand.Range(1500, 60000);
-            newData.lastCheckTick = Find.TickManager.TicksGame + Rand.Range(500, 30000);
+            newData.lastTryTick = Find.TickManager.TicksGame + Rand.Range(2000, 34000);
+            newData.lastCheckTick = Find.TickManager.TicksGame + Rand.Range(2000, 20000);
             //if (Prefs.DevMode)
             //{
             //    newData.lastTryTick = Find.TickManager.TicksGame + 500;
@@ -515,9 +515,9 @@ namespace eqdseq
             if (!pawn.GetInitLastTryTick())
             {
                 pawn.SetInitLastTryTick(true);
-                int numr = ((((ticksGame % 1000) + (pawn.thingIDNumber % 1000)) % 1000) + Rand.Range(500, 5000));
+                int numr = ((((ticksGame % 1000) + (pawn.thingIDNumber % 1000)) % 1000) + Rand.Range(1400, 8000));
                 pawn.SetCheckTick(ticksGame + numr);
-                pawn.SetTryTick(ticksGame + (numr * 2));
+                pawn.SetTryTick(ticksGame + numr + (int)(2500 * IdleLovinUtility.GenerateRandomMinTicksToNextCanLovin(pawn)));
                 if (!ModLister.CheckBiotech("Human pregnancy"))
                 {
                     pawn.SetLaborCheckTick(int.MaxValue);
@@ -1416,13 +1416,16 @@ namespace eqdseq
                 }
                 DoLovinWhenIdle_Manager.DLWIRR_TryRomanceNeed(actor);
                 Thought_Memory thought_Memory = (Thought_Memory)ThoughtMaker.MakeThought(ThoughtDefOf.GotSomeLovin);
-                //int numm = 60000;
+                bool enhancer = false;
                 if ((hediffSet.hediffs.Any((Hediff h) => h.def == HediffDefOf.LoveEnhancer)) || (hediffSet2.hediffs.Any((Hediff h) => h.def == HediffDefOf.LoveEnhancer)))
                 {
                     thought_Memory.moodPowerFactor = 1.5f;
-                    //numm = 120000;
+                    enhancer = true;
                 }
-                //thought_Memory.durationTicksOverride = numm;
+                if (!enhancer)
+                {
+                    thought_Memory.durationTicksOverride = 90000;
+                }
                 actor.needs?.mood?.thoughts.memories.TryGainMemory(thought_Memory, actor2);
                 Find.HistoryEventsManager.RecordEvent(new HistoryEvent(HistoryEventDefOf.GotLovin, actor.Named(HistoryEventArgsNames.Doer)));
                 HistoryEventDef def = (actor.relations.DirectRelationExists(PawnRelationDefOf.Spouse, actor2) ? HistoryEventDefOf.GotLovin_Spouse : HistoryEventDefOf.GotLovin_NonSpouse);
