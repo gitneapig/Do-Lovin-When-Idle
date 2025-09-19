@@ -2,7 +2,6 @@
 <loadFolders>
 	<v1.6>
 		<li>/</li>
-		<li IfModNotActive="jikulopo.prepatcher">1.6Test</li>
-		<li IfModActive="jikulopo.prepatcher">1.6Test Prepatcher</li>
+		<li>1.6Test Prepatcher</li>
 	</v1.6>
 </loadFolders>
